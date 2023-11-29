@@ -3,14 +3,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
-
-w = 1
-b = 0
-y_hat = int()
-m = 9
-f = np.array([])
-
-
 #size in squaremeters
 x1 = np.array([
     60/180,
@@ -97,18 +89,10 @@ x_vector = np.array([x1,x2,x3,x4,x5])
 
 
 plt.scatter(x1,y)
-model = LinearRegression().fit(x1.reshape(1,-1),y)
+model = LinearRegression().fit(x_vector,y.reshape(-1,1))
 plt.show()
 print(model)
 r_sq=model.score(x1,y)
 
-y_pred = model.predict(x1)
+y_pred = model.predict()
 
-
-#linear regression model - f w,b(x) = wx + b
-#b = 400
-#
-
-
-def apply_gradientdescent():
-    derivate = 0
