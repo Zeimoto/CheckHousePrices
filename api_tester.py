@@ -6,29 +6,31 @@ import re
 from dateutil.relativedelta import relativedelta
 
 max_limit = 40
-out_filename = 'request_cont.json'
+cont_filename = 'request_cont.json'
+api_response_filename = 'api_out.json'
 out_json = {
             'first_entry': '',
             'last_entry': '',
             'counter': 0
         }
-token = ""
 
 def get_keys():
     apikey = ''
     secret = ''
     api_auth_f = 'api_auth.json'
-    with open (api_auth_f, 'r') as f:
-        apikey = json.loads(f.read()['apikey'])
-        secret = json.loads(f.read()['secret'])
+    auth_json = read_file(api_auth_f)
+    #print('Auth json output:',auth_json)
+    apikey = auth_json['apikey']
+    secret = auth_json['secret']
     return apikey, secret
 
 def get_token():
     apiKey, secret = get_keys()
     
     message = apiKey + ':' + secret
+    #print('Message not encoded',message)
     auth = "Basic " + base64.b64encode(message.encode("ascii")).decode("ascii")
-
+    #print('Encoded auth:',auth)
     headers_dic = {"Authorization":auth,
                    "Content-Type" : "application/x-www-form-urlencoded;charset=UTF-8"}
     params_dic = {"grant_type" : "client_credentials",
@@ -42,50 +44,73 @@ def get_token():
     #print('Json Load: ',json.loads(r.text))
     return bearer_token
 
-def get_resquest():
-    '''
-    method = "POST"
-    url = "https://api.idealista.com/3.5/es/search"
+def get_request():
 
-    session = requests.session()
-    response = session.request(method=method, url=url, auth=auth, client_secret=secret)
+    #curl -X POST -H "Authorization: Bearer {{OAUTH_BEARER}}" -H "Content-Type: multipart/form-data;" 
+    #-F "center=40.430,-3.702" -F "propertyType=homes" -F "distance=15000" -F "operation=sale"
 
-    data = json.load(response.content)
+    #https://api.idealista.com/3/es/search?locale=es&maxItems=20&numPage=1&operation=sale
+    # &order=publicationDate&propertyType=garages&sort=desc
+    # &apikey={api_key}&t=1&language=es&bankOffer=true&locationId=0-EU-ES-28
+    success = bool
+    token = get_token()
+    apiKey, secret = get_keys()
+
+    url = "https://api.idealista.com/3.5/pt/search"
+    data = {'locale':'pt',
+            'propertyType':'homes',
+            'sort':'desc',
+            'order':'publicationDate',
+            'operation':'sale',
+            'apikey':apiKey,
+            'language':'pt',
+            't':'1',
+            'center':'38.72197742266314,-9.139480518540617',
+            'distance':20000}
+    
+    #session = requests.session()
+    headers = {'Authorization': 'Bearer '+token
+        }
+    print('token:'+headers['Authorization'])
+    
+    #response = session.request(method=method, url=url, headers=headers, data=data, auth=auth, client_secret=secret)
+
+    response = requests.post(url=url, headers=headers, data=data)
+    data = json.loads(response.text) #response.content
+    save_to_file(api_response_filename, data) 
+    if response.status_code == 200:
+        success = True
+    else:
+        success = False
     print(data)
-    '''
-    return 0
+    return success 
 
 def inc_counter():
     #increment the counter inside the file
     #this must save in every iteration of this code
-    out_json = get_out_file()
-    out_json['last entry'] = get_cur_date_str()
+    out_json = read_file(cont_filename)
+    out_json['last_entry'] = get_cur_date_str()
     out_json['counter'] += 1
-    save_out_file(out_json)
+    save_to_file(cont_filename, out_json)
     
 def check_limit():
     #first checks how long was the first call
-    out_json = get_out_file()
-    print(out_json['first_entry'])
+    out_json = read_file(cont_filename)
 
     if a_month_ago(out_json['first_entry']):
         #if it was a month ago, then set the first entry date to the current time and reset the counter
-        print('First entry is past a month now!')
         curr_datetime = get_cur_date_str()
-        print('This will become the set first entry date',curr_datetime)
         out_json['first_entry'] = curr_datetime #set to current time
         out_json['counter'] = 0 #reset timer
-        print(out_json)
-        save_out_file(out_json)
+        save_to_file(cont_filename, out_json)
         
     return out_json['counter']
 
 def next_call():
-    out_json = get_out_file()
-    delta = relativedelta(datetime.datetime.now(), out_json['last entry'].strftime('%d/%m/%Y %H:%M'))
+    out_json = read_file(cont_filename)
+    delta = relativedelta(datetime.datetime.now(), out_json['last_entry'].strftime('%d/%m/%Y %H:%M'))
     hours_difference = int(delta.hours)
     if hours_difference > 12:
-        inc_counter()
         return True
     else:
         return False
@@ -110,18 +135,28 @@ def get_cur_date_str():
 
 def init_json():
 
-    out_json = get_out_file()
-    #print('after file load:',out_json)
+    out_json = read_file(cont_filename)
+    
     if out_json == '':
-        #print('WARNING: file is empty')
+        
         out_json = {
             'first_entry':'',
             'last_entry':'',
             'counter':0
             }
-        save_out_file(out_json)
+        save_to_file(cont_filename, out_json)
 
     return out_json
+
+def read_file(filename):
+    json_out = {}
+    with open(filename, 'r') as f:
+        json_out = json.loads(f.read())
+    return json_out
+
+def save_to_file(filename, json_content):
+    with open(filename, 'w') as f:
+        json.dump(json_content,f,indent=1)
     
 def run():
 
@@ -131,16 +166,17 @@ def run():
     if check_limit() >= max_limit:
         raise Exception('Enough criminal scum, you violated the law!\nLimit (35 service requests) reached!')
     else:
-        print(get_out_file())
+        success = bool
+        #while success:
+        #    if next_call():
+        #        success = get_request()
+        #       if success:
+        #           inc_counter() #increments counter and updates the last request datetime
+        #           print(read_file(cont_filename))
 
-def get_out_file():
-    json_out = {}
-    with open(out_filename, 'r') as f:
-        json_out = json.loads(f.read())
-    return json_out
-
-def save_out_file(json_file):
-    with open(out_filename, 'w') as f:
-        json.dump(json_file,f,indent=1)
-
-run()
+        success = get_request()
+        print('Success?',success)
+        if success != True:
+            raise Exception('Request not completed succesfully')
+        else:
+            inc_counter()
