@@ -66,7 +66,8 @@ def get_request():
             'language':'pt',
             't':'1',
             'center':'38.72197742266314,-9.139480518540617',
-            'distance':20000}
+            'distance':100000,
+            'maxItems':1000}
     
     #session = requests.session()
     headers = {'Authorization': 'Bearer '+token
@@ -97,7 +98,7 @@ def check_limit():
     #first checks how long was the first call
     out_json = read_file(cont_filename)
 
-    if a_month_ago(out_json['first_entry']):
+    if new_month(out_json['first_entry']):
         #if it was a month ago, then set the first entry date to the current time and reset the counter
         curr_datetime = get_cur_date_str()
         out_json['first_entry'] = curr_datetime #set to current time
@@ -115,19 +116,18 @@ def next_call():
     else:
         return False
     
-def a_month_ago(date_text):
+def new_month(date_text):
     #Returns true if the time between the first call and the current time is equal to at least one month
     #meaning, if it's at least one month, then we can reassign the first entry to the current date
-    
+
     #print('Entry:',date_text)
     cur_datetime = datetime.datetime.now()
     
     date_txt_f = re.search(r'\d{2}/\d{2}/\d{4}',date_text).group(0)
     date_obj = datetime.datetime.strptime(date_txt_f, "%d/%m/%Y")
     delta = relativedelta(cur_datetime, date_obj)
-    months_difference = int(delta.months)
-    
-    return months_difference >= 1
+
+    return int(delta.days) >= 1 and date_obj.month != cur_datetime.month
 
 def get_cur_date_str():
 
